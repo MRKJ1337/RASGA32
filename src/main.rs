@@ -23,6 +23,8 @@ fn main() {
     output.cat(&self_modifying);
     output.cat(&svc_part);
 
+    output.is_alphanumeric().unwrap();
+
     match String::try_from(&output) {
         Ok(s) => {
             println!("{}", s);
@@ -31,6 +33,4 @@ fn main() {
             println!("{}", e);
         }
     }
-
-    output.is_alphanumeric().unwrap();
 }
