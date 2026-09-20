@@ -14,7 +14,6 @@ Those are the problematic instructions that led me to reimplement the code base 
 
 ```
 SUBPL rX, pc, rY, ROR rZ      (builder.c / algo2())
-RSB rX, rX, #<state.I | 0x30> (builder.c / DecoderLoopBuilder())
 ```
 
 Those instructions triggers SIGILL on *arm32* binaries that are being executed on modern aarch64 machines,
