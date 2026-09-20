@@ -57,7 +57,21 @@ Change the address and the size arguments in the code.
 
 ## Tests
 
-**QEMU is used for the unit testing**.
+**QEMU is used for the unit testing, as well as the [pwntools](https://github.com/Gallopsled/pwntools) framework (Python3) to read core dumps**.
+
+### QEMU
+
+[To be added](https://letmegooglethat.com/?q=jarvis+how+to+install+qemu)
+
+### Python
+
+```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Run tests
 
 Supposing that you are on *amd64*, to build `vuln.c` :
 ```
