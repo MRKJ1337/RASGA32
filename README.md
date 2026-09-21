@@ -14,10 +14,13 @@ Those are the problematic instructions that led me to reimplement the code base 
 
 ```
 SUBPL rX, pc, rY, ROR rZ      (builder.c / algo2())
+swi #0x9f0002
 ```
 
-Those instructions triggers SIGILL on *arm32* binaries that are being executed on modern aarch64 machines,
+The first instruction triggers SIGILL on *arm32* binaries that are being executed on modern aarch64 machines,
 despite being valid instructions at a first glance.
+
+Finally, the syscall that is mentioned in multiple writeups to address to problem of the instruction cache not being flushed does **not exist at all** in the ARM32 EABI ABI syscall tables.
 
 I found it easier to reimplement his whole code base than trying to modify the latter.
 
@@ -33,9 +36,8 @@ Registers $R_{\{4,6\}}$ can also be used to some extend. The others are impossib
 
 `sub`, `add`, `mul` are reimplemented through repeated `xor` operations through $R_{i,j,k}$.
 
-## Goal
-
-As the self-modifying system described in the paper does not work at all on modern *ARMv8* machines, all the main entrypoint does is call `syscall(SYS_read, 0, <address>, <size>` at the end.
+The original shellcode is encoded then decoded on site.
+The process needs the instruction cache to be flushed multiple times. The workaround found here to circumvent the OABI call `swi #0x9f0002` is to call `syscall(SYS_sync)`.
 
 ## Getting started
 
@@ -46,13 +48,11 @@ $ cargo run -- --help
 
 ### Example
 
-Call `syscall(SYS_read, 0, 0x70776000, 0x200)` :
+With the shellcode that prints out `/etc/passwd` at `passwd.bin` :
 ```
-$ cargo run --bin main
-eX5PeX5Ps5SPwuWPveVPiP5Rj0ERiPER0PORwgEPuWUPzP5RuWGPugFPugFPuWUPlP5R8P5RuWGPugFPuWUPiP5RipER0pFUsgFPipER0pFUsgFPipER0pFUsgFPsgFPiPERtETPveVPHPMRcIEVcIEVcIEVcIEVcIEV7p4RWp7RcyEVwp4RcyEVpp4RcyEVcIEVlp4Rnp7RcyEVcIEVcIEV0PMRGA5Y4p4R7p7RuTUPiP5Rs4SPvdVPtDTPtDTPtDTPtDTPtDTPj0URAAAOs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SP
+$ cargo run --bin main -- --src passwd.bin
+eX5PeX5Ps5SPwuWPveVPiP5Rj0ERiPER0PORwgEPuWUPzP5RuWGPugFPugFPugFPugFPuWUPiP5RipER0pFUsgFPipER0pFUsgFPipER0pFUsgFPsgFPiPERzP5RuWGPugFPuWUPxP5RzP5RuWGPugFPuWUPiP5Rlp3Rfp7B0pFEipUBsgFP3p3R3p7B0pFEipUBsgFPsp3Rsp7B0pFEipUBsgFPsgFPiPERzP5RuWGPuWUPLP5RTP5RuWGPugFPuWUPiP5RipER0pFUsgFPipER0pFUsgFPipER0pFUsgFPsgFPiPERtETPveVPpPMRcIEVcIEVcIEVcIEVc9EVc9EVc9EVc9EVcIEVcIEVcIEVcIEVXPMRGA5Ywp4RSp7RuTUPiP5Rs4SPvdVPtDTPtDTPtDTPtDTPtDTPtDTPtDTPj0URAAAOip5Bs7SPwwWPtGTPvgVPuWUP00ORwGCPs7SPz03Rs7GPsGDPsGDPs7SPq03R903Rs7GPsGDPs7SPscDPoP5RsP5Rp05B00TUqADP0pTUs57P00FUqaFPqADP8pwRAAAJeX5PeX5Pup5RQp7RiP5Rj0URAAAOs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPs3SPqcPwfgYsrDBPsphcvdppFMJEtoBPUWXcrAPsaWHcvdBPfMiuTorUwvHcptCCqVkSeTBPDmiufmwpoPIqGqfpuqkPDERPMpiswpUPUPzOgpdPmpXagqGpMpJCfbepFBIpVbVQipjCOKPpOPHcEPwpUPjOQ0
 ```
-
-Change the address and the size arguments in the code.
 
 ## Tests
 
@@ -60,7 +60,7 @@ Change the address and the size arguments in the code.
 
 ### QEMU
 
-[To be added](https://letmegooglethat.com/?q=jarvis+how+to+install+qemu)
+The reader is expected to have set up QEMU on its Linux system, especially `qemu-arm-static`.
 
 ### Python
 

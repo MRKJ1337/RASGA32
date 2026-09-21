@@ -274,19 +274,30 @@ impl Shellcode {
 /// This is the most important function out of the
 /// 4 ones, as it saves the used registers in the state struct.
 /// The initializer will later set values for them.
-pub fn build_self_modifying_part(
+pub fn build_decoder_of_decoder_loop(
     prng: &mut StdRng,
     target: &mut Shellcode,
     state: &mut State,
-    target_address: u32,
-    size: u32,
-    padding_size: u32
+    size: u32
 ) -> Shellcode {
     let mut shellcode = build_initializer(prng, state);
-    shellcode.check_alphanumeric = true;
 
-    shellcode.gap_traverse_with_state(prng, padding_size - shellcode.opcodes.len() as u32, state, true);
+    shellcode.gap_traverse_with_state(prng, size - shellcode.opcodes.len() as u32, state, true);
 
+    // Syscall - svcmi #0
+    // We **replace only** the data part
+    shellcode.gap_traverse_with_state_until_next_placeholder(target, prng, state, false);
+    shellcode.replace_bytes_on_place(prng, target, &[0, 0, 0, 0x4f], state);
+
+    // Check end of loop
+    // * No need to replace bytes
+
+    // Loop back - bmi 0xfffffX
+    shellcode.gap_traverse_with_state_until_next_placeholder(target, prng, state, false);
+    shellcode.replace_bytes_on_place(prng, target, &[0xf5, 0xff, 0xff, 0x4a], state);
+
+    // Syscall - svcmi #0
+    // We **replace only** the data part
     shellcode.gap_traverse_with_state_until_next_placeholder(target, prng, state, false);
     shellcode.replace_bytes_on_place(prng, target, &[0, 0, 0, 0x4f], state);
 
@@ -300,14 +311,19 @@ pub fn build_self_modifying_part(
     let m: Register  = state.i;
     let c = get_random_alphanumeric_offset_char_aligned(prng, 24);
 
-    // Prepare to call syscall(SYS_READ, ...)
+    // Prepare to call syscall(SYS_sync)
+    // with a dummy address buffer ;
+    // Turns out that it also flushes the instruction cache
+    // similarly to the old EABI swi #0x9f0002
+
     // Set stack address into r{m}
     shellcode.dpimm(Opcode::SUB, Cond::PL, false, m,Register::SP, c + 24);
 
     write_dword(prng, 0, &mut shellcode, r_minus_1, r_current_byte, r_null, m);
-    // This is the beginning of our alphanumeric shellcode
-    write_dword(prng, target_address, &mut shellcode, r_minus_1, r_current_byte, r_null, m);
-    write_dword(prng, size, &mut shellcode, r_minus_1, r_current_byte, r_null, m);
+    // We set R1 as -1 for later use
+    // THIS CANNOT BE CHANGED
+    write_dword(prng, 0xffffffff, &mut shellcode, r_minus_1, r_current_byte, r_null, m);
+    write_dword(prng, 0, &mut shellcode, r_minus_1, r_current_byte, r_null, m);
 
     shellcode.dpimm(Opcode::SUB, Cond::PL, false, m, Register::SP, c);
     shellcode.lmul(m, &[
@@ -321,22 +337,104 @@ pub fn build_self_modifying_part(
     ]);
 
     // ------------------------------
-    // Set R7 register for SVC 0
+    // Set r7 for syscall
     // ------------------------------
-    let sys_read = 3;
-    Register::R7.set_u8_value_from_reg(prng, &mut shellcode, r_null, sys_read, 0);
+    Register::R7.set_u8_value_from_reg(prng, &mut shellcode, r_null, 0x24, 0);
 
     // ------------------------------
-    // Reset other registers
+    // Reset registers
     // ------------------------------
     state.i.nullify_with_register(&mut shellcode, r_null);
     state.restore_i(&mut shellcode);
     state.j.nullify_with_register(&mut shellcode, r_null);
     Register::R6.nullify_with_register(&mut shellcode, r_null);
 
-    shellcode.pad_with_nop((padding_size - 4) as usize, r_null);
+    shellcode.pad_with_nop((size - 4) as usize, r_null);
 
     state.set_minus_1_with_i(state.j, Cond::PL, &mut shellcode, true);
+
+    shellcode
+}
+
+pub fn build_decoder_loop(
+    prng: &mut StdRng,
+    state: &State,
+    size: u32
+) -> Shellcode {
+    let mut shellcode = Shellcode::default();
+
+    // svcmi #0
+    shellcode.create_placeholders(4);
+
+    // Reset N == 0
+    shellcode.dpimm(Opcode::EOR, Cond::MI, true, state.k, state.i, state.x);
+
+    // Registers
+    // NOTE: We suppose that all these registers are already null !
+    let p = Register::R3;
+    let s = Register::R4;
+    let q = Register::R7;
+    let t = Register::R6;
+    // It is set thanks to using LDMSTR previously
+    let r_minus_1 = Register::R1;
+    let shift = Register::R5;
+    p.nullify_with_register(&mut shellcode, state.k);
+    q.nullify_with_register(&mut shellcode, state.k);
+    s.nullify_with_register(&mut shellcode, state.k);
+    t.nullify_with_register(&mut shellcode, state.k);
+    shift.nullify_with_register(&mut shellcode, state.k);
+
+    // Set s, t pointing to SP
+    shellcode.gap_traverse(prng, size - shellcode.opcodes.len() as u32 + 4, s, p, q, true);
+    shellcode.dpshiftreg(Opcode::SUB, false, t, s, p, Shift::ROR, p);
+
+    // Use a register for shifting
+    shift.set_u8_value_from_reg(prng, &mut shellcode, shift, 28, 0);
+
+    // ::::::::::::::::::::::::::::::
+    // LOOP START [*]
+    // ::::::::::::::::::::::::::::::
+    // Set N == 0
+    shellcode.dpimm(Opcode::EOR, Cond::MI, true, p, shift, 0x70);
+
+    // The loop that will store
+    // the bytes 0xCD, 0xEF into respectively
+    // r{p} and r{q}. r{s} will get incremented.
+    shellcode.lsbyte(Opcode::LDR, Cond::PL, p, s, OFFSET);
+    s.increment(&mut shellcode, r_minus_1);
+
+    shellcode.lsbyte(Opcode::LDR, Cond::PL, q, s, OFFSET);
+    // Store 0xCD0 ^ 0xEF = 0xAD in r{p}
+    shellcode.dpshiftreg(Opcode::EOR, true, p, q, p, Shift::ROR, shift);
+    // Store 0xAD at [t]
+    shellcode.lsbyte(Opcode::STR, Cond::PL, p, t, OFFSET);
+    t.increment(&mut shellcode, r_minus_1);
+    s.increment(&mut shellcode, r_minus_1);
+
+    // ------------------------------
+    // LOOP END - Check if we reach the marker
+    // at the end of the encoded shellcode
+    // ------------------------------
+    shellcode.dpimm(Opcode::RSB, Cond::PL, true, q, q, 0x30 | state.marker);
+
+    // BMI 0xfffffX
+    // Go back to [*] 
+    shellcode.create_placeholders(4);
+
+    // ------------------------------
+    // Set r7 for syscall
+    // ------------------------------
+    state.i.nullify(prng, &mut shellcode);
+    Register::R7.set_u8_value_from_reg(prng, &mut shellcode, state.i, 0x24, 0);
+
+    state.restore_i(&mut shellcode);
+    state.set_minus_1_with_i(state.j, Cond::PL, &mut shellcode, true);
+
+    // svcmi #0
+    shellcode.create_placeholders(4);
+    
+    let r_null = Register::R3;
+    shellcode.pad_with_nop(size as usize, r_null);
 
     shellcode
 }

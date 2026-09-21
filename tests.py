@@ -28,6 +28,9 @@ class TestShellcode(unittest.TestCase):
     def test_register_4(self):
         self.assertEqualHex(self.core.registers['r3'], 0x7f)
 
+    def test_register_5(self):
+        self.assertEqualHex(self.core.registers['r3'], 0x30)
+
     def test_shellcode_1(self):
         # The current PC value
         # where the instruction that will saves $PC into R holds at
@@ -41,6 +44,16 @@ class TestShellcode(unittest.TestCase):
         pc = 0x70776000+0x100
         value = u32(self.core.read(pc, 4))
         self.assertEqualHex(value, 0xdeadbeef)
+
+    def test_shellcode_3(self):
+        # ------------------------------
+        # This test is not guaranted to work outside of QEMU
+        # Run also this test on a baremetal machine
+        # ------------------------------
+        pc = 0x70776000+0x2B0
+        plain = b"HELLO WORLD I AM JEFF"
+        value = self.core.read(pc, len(plain))
+        self.assertEqual(value, plain)
 
 if __name__ == '__main__':
     unittest.main()

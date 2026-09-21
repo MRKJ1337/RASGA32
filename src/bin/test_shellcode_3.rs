@@ -1,18 +1,6 @@
-use clap::*;
-
 use rasga::prelude::*;
 
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// The shellcode to encode following the RASGA algorithm.
-    #[arg(short, long)]
-    src: String,
-}
-
 fn main() {
-    let args = Args::parse();
-
     let mut prng = StdRng::seed_from_u64(0);
     let mut state = State::default();
     state.marker = prng.random_range(1..=9);
@@ -22,14 +10,17 @@ fn main() {
     // Encode original shellcode
     // ------------------------------
     let mut input = Shellcode::default();
+    let plain = "HELLO WORLD I AM JEFF";
+    for c in plain.bytes() {
+        input.append_byte(c);
+    }
 
-    input.from_binary_file(args.src.as_str());
     let mut encoded_input = Shellcode::default();
     encoded_input.add_encoded_data(&mut prng, &input, &mut state); 
 
     let mut decoder_loop = build_decoder_loop(&mut prng, &state, 0x100);
 
-    let decoder = build_decoder_of_decoder_loop(&mut prng, &mut decoder_loop, &mut state, 0x1b0);
+    let decoder = build_decoder_of_decoder_loop(&mut prng, &mut decoder_loop, &mut state, 0x1B0);
 
     let mut output = Shellcode::default();
     output.check_alphanumeric = true;
@@ -45,7 +36,7 @@ fn main() {
             println!("{}", s);
         },
         Err(e) => {
-            println!("{}", e);
+            panic!("{}", e);
         }
     }
 }
