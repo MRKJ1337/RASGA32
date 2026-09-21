@@ -27,7 +27,7 @@ fn main() {
     let mut encoded_input = Shellcode::default();
     encoded_input.add_encoded_data(&mut prng, &input, &mut state); 
 
-    let mut decoder_loop = build_decoder_loop(&mut prng, &state, 0x100);
+    let mut decoder_loop = build_decoder_loop(&mut prng, &state, 0x100-100);
 
     let decoder = build_decoder_of_decoder_loop(&mut prng, &mut decoder_loop, &mut state, 0x1b0);
 

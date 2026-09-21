@@ -424,11 +424,9 @@ pub fn build_decoder_loop(
     // ------------------------------
     // Set r7 for syscall
     // ------------------------------
-    state.i.nullify(prng, &mut shellcode);
-    Register::R7.set_u8_value_from_reg(prng, &mut shellcode, state.i, 0x24, 0);
-
-    state.restore_i(&mut shellcode);
-    state.set_minus_1_with_i(state.j, Cond::PL, &mut shellcode, true);
+    Register::R3.nullify(prng, &mut shellcode);
+    Register::R7.set_u8_value_from_reg(prng, &mut shellcode, Register::R3, 0x24, 0);
+    Register::R3.set_minus_1_from_null(&mut shellcode, true);
 
     // svcmi #0
     shellcode.create_placeholders(4);
