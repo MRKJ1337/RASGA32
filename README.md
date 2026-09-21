@@ -1,6 +1,6 @@
 # RASGA32
 
-A Rusty fork of the existing project [asga](https://github.com/pratX/asga/) that consists of transforming some arbitrary *arm32* shellcode into its alphanumeric equivalent.
+A Rusty fork of the existing project [asga](https://github.com/pratX/asga/) that consists of transforming some arbitrary *arm32* shellcode into its alphanumeric equivalent, EABI ABI-compatible.
 
 The main pro of this implementation is that the generated shellcode works on modern *aarch64* (ARMv8) machines that are retrocompatible with *arm32*. The original repo will produce a shellcode that will straight up crash every single time because of architecture issues.
 
