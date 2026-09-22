@@ -29,7 +29,7 @@ fn main() {
 
     let mut decoder_loop = build_decoder_loop(&mut prng, &state, 0x100-100);
 
-    let decoder = build_decoder_of_decoder_loop(&mut prng, &mut decoder_loop, &mut state, 0x1b0);
+    let decoder = build_decoder_of_decoder_loop(&mut prng, &mut decoder_loop, &mut state, 0x1a0);
 
     let mut output = Shellcode::default();
     output.check_alphanumeric = true;
