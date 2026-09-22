@@ -467,22 +467,6 @@ pub fn build_initializer(
     shellcode
 }
 
-pub fn build_svc_part(
-    _prng: &mut StdRng,
-    _state: &State,
-    size: u32
-) -> Shellcode {
-    let mut shellcode = Shellcode::default();
-
-    // Need to call this *non-alphanumeric* instruction
-    shellcode.create_placeholders(4);
-
-    let r_null = Register::R3;
-    shellcode.pad_with_nop(size as usize, r_null);
-
-    shellcode
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
